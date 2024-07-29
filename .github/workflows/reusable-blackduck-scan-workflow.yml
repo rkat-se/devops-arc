@@ -27,7 +27,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: Running Black Duck Detect and Scan
       shell: powershell
-      run: "write-host "${{ github.workspace }}"
+      run: #"write-host "${{ github.workspace }}"
             write-host "${{ github.repository }}"
             $source_path = "${{ github.workspace }}/${{ github.repository }}/${{ env.PROJECT_PATH }}"
             $project_name = "${{ env.PROJECT_NAME }}"
