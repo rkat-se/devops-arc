@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'SecOpsIntakePortal/'
+      - 'SecOpsIntakePortal.Common/'
+      - 'SecOpsIntakePortal.UI.Tests'
+
+env:
+  PROJECT_PATH: './SecOpsIntakePortal/SecOpsIntakePortal.csproj'
+  PROJECT_NAME: 'Blackduck-POC'
+
+jobs:
+  quality_gates:
+    runs-on: windows-2022
+    name: Quality Gates
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: 'Shared-Services/SecOpsTemplates'
+          ref: 'refs/heads/main'
+      - uses: actions/checkout@v3
+        with:
+          repository: 'VW.AC-Common/vwac-shared-resources'
+          ref: 'refs/heads/main'
+      - uses: actions/checkout@v3
+        with:
+          repository: 'Shared-Services/SecOpsPOC'
+          ref: 'nav-test-simapp'
+
+      # Blackduck step would go here, you'll need to replace this with the actual action or script you intend to use
+      - name: Blackduck Scan
+        uses: ./.github/workflows/reusable-blackduck-scan-workflow.yml
+        with:
+          sourcePath: './SecOpsIntakePortal/'
+          projectVersion: 'release4.0'
+          excludeDirectories: './SecopsIntakePortal/CustomClaimHelpers,./SecopsIntakePortal/nginx'
+          projectTag: 'vci'
+          reportPath: './Security/BlackDuckReports/'
+          riskReportPath: './Security/BlackDuckReports/' 
+        #run: |
+          # Your blackduck scan script/command
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get Scan Logs
+        run: |
+          accessToken=$(az account get-access-token --query "accessToken" --output tsv)
+          echo "Authorization: Bearer $accessToken" > auth.txt
+          buildId=${{ github.run_id }}
+          buildUrl="https://dev.azure.com/orgname/_apis/build/builds/$buildId/logs/8?api-version=7.2-preview.2"
+          echo $buildUrl
+          output=$(curl -X GET "$buildUrl" -H "Content-Type: application/json; charset=utf-8; api-version=6.0" -H "$(cat auth.txt)" --max-redirs 10)
+          echo $output >> ${{ github.workspace }}/task_logs.txt
+
+      - name: Upload Task Logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: TaskLogs
+          path: ${{ github.workspace }}/task_logs.txt
+
+      - name: Upload Blackduck Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: BlackDuckReport
+          path: ${{ github.workspace }}/Security/BlackDuckReports/
