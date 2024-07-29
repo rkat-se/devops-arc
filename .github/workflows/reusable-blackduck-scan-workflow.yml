@@ -1,0 +1,110 @@
+name: Reusable Blackduck Scan Workflow
+
+on:
+  workflow_call:
+    inputs:
+      sourcePath:
+        type: string
+        default: '.SecOpsIntakePortal'
+      projectVersion:
+        type: string
+        default: 'release4.0'
+      excludeDirectories:
+        type: string
+        default: '.SecopsIntakePortal/CustomClaimHelpers,./SecopsIntakePortal/nginx'
+      projectTag:
+        type: string
+        default: 'vci'
+      reportPath:
+        type: string
+        default: '.Security/BlackDuckReports'
+      riskReportPath:
+        type: string
+        default: '.Security/BlackDuckReports'
+jobs:
+  blackduck_scan:
+    steps:
+    - uses: actions/checkout@v2
+    - name: Running Black Duck Detect and Scan
+      shell: powershell
+      run: "write-host "${{ github.workspace }}"
+            write-host "${{ github.repository }}"
+            $source_path = "${{ github.workspace }}/${{ github.repository }}/${{ env.PROJECT_PATH }}"
+            $project_name = "${{ env.PROJECT_NAME }}"
+            $folder_search_depth= 0
+            $ProjectNameFromParam= "${{ env. parameters.BlackDuckParams.ProjectName  }}"
+            $projectVersionFromParam= "${{ env. parameters.BlackDuckParams.ProjectVersion  }}"
+            $SourcePathFromParam= "${{ env. parameters.BlackDuckParams.SourcePath  }}"
+            $ProjectTagFromParam= "${{ env. parameters.BlackDuckParams.ProjectTag  }}"
+            $ExcludeDirectoriesFromParam = @("${{ env. parameters.BlackDuckParams.ExcludeDirectories  }}" -split ",")
+            $ExcludePackagistDependenciesFromParam= @("${{ env. parameters.BlackDuckParams.ExcludePackagistDependencies }}" -split ",")
+            $ExcludeNugetPackagesFromParam = @("${{ env. parameters.BlackDuckParams.ExcludeNugetPackages  }}" -split ",")
+            $ExcludeNPMDependenciesFromParam= @("${{ env. parameters.BlackDuckParams.ExcludeNPMDependencies  }}" -split ",")
+            $project_version = if ($projectVersionFromParam) { $projectVersionFromParam } else { $project_version }
+            if ("${{ env.Build.SourceBranchName }}" -eq "main") {
+                $project_version = "main_latest"
+            } else {
+                if (-not  "$projectVersionFromParam") {
+                    $project_version = "pr"
+                }
+            }
+
+            # Replace default values if provided as parameter
+            $source_path = if ($SourcePathFromParam) { $SourcePathFromParam } else { $source_path }
+            $project_name = if ($ProjectNameFromParam) { $ProjectNameFromParam } else { $project_name }
+            $project_tag = if ($ProjectTagFromParam) { $ProjectTagFromParam } else { $project_tag }
+            $folder_search_depth="${{ env. coalesce(parameters.BlackDuckParams.FolderSearchDepth, '$folder_search_depth')  }}"
+            $report_path="${{ env. coalesce(parameters.BlackDuckParams.ReportPath, '$report_path')  }}"
+            $risk_report_path="${{ env. coalesce(parameters.BlackDuckParams.RiskReportPath, '$risk_report_path')  }}"
+            #[array]$severities = '"BLOCKER"','"CRITICAL"','"MAJOR"'
+
+            # Set blackduck properties
+            $blackduck_properties += "--blackduck.url=",
+                              "--detect.policy.check.fail.on.severities="ALL"",
+                              "--blackduck.api.token=${{ env.BlackDuckScannerAccountToken }}",
+                              "--detect.source.path="$source_path"",
+                              "--detect.project.name="$project_name"",
+                              "--detect.project.version.name="$project_version"",
+                              "--detect.project.codelocation.unmap="TRUE"",
+                              "--detect.project.tags="$project_tag"",
+                              "--detect.detector.search.depth="$folder_search_depth"",
+                              "--detect.notices.report="TRUE"",
+                              "--detect.notices.report.path="$report_path"",
+                              "--detect.risk.report.pdf="TRUE"",
+                              "--detect.risk.report.pdf.path="$risk_report_path"",
+                              "--detect.blackduck.signature.scanner.copyright.search="TRUE"",
+                              "--detect.blackduck.signature.scanner.license.search="TRUE"",                      
+                              "--detect.blackduck.signature.scanner.upload.source.mode="TRUE""
+            foreach ($excludeddir in $ExcludeDirectoriesFromParam) { 
+                  # Build the blackduck property with the current package   
+              $blackduck_properties += "--detect.excluded.directories="$excludeddir" "
+            }
+
+            # foreach ($excludednuget in $ExcludeNugetPackagesFromParam) { 
+            #       # Build the blackduck property with the current package   
+            #   $blackduck_properties += \"--detect.nuget.excluded.modules=\"$excludednuget\" \"
+            # }
+            # foreach ($excludednpmdeps in $ExcludeNPMDependenciesFromParam) { 
+            #       # Build the blackduck property with the current package   
+            #   $blackduck_properties += \"--detect.npm.dependency.types.excluded=\"$excludednpmdeps\" \"
+            # }
+            # foreach ($excludedpkgdeps in $ExcludePackagistDependenciesFromParam) { 
+            #       # Build the blackduck property with the current package   
+            #   $blackduck_properties += \"--detect.packagist.dependency.types.excluded=\"$excludedpkgdeps\" \"
+            # }
+             # for full list of Black Duck properties, see https://community.synopsys.com/s/document-item?bundleId=integrations-detect&topicId=properties%2Fall-properties.html&_LANG=enus
+
+            # Check for agent operating system and run synopsis detect using corresponding script
+            echo "Running Black Duck Scan on ${{ runner.os }}"
+            echo "blackduck_properties = $blackduck_properties"
+            if ( "${{ runner.os }}" -eq "Windows_NT" ) {
+              powershell "[Net.ServicePointManager]::SecurityProtocol = 'tls12'; irm https://detect.synopsys.com/detect9.ps1?$RANDOM | iex; detect" $blackduck_properties
+              }
+            elseif ( "${{ runner.os }}" -eq "Linux" ) {
+              bash >(curl -s -L https://detect.synopsys.com/detect9.sh) $blackduck_properties    
+              }
+            else
+            {
+              echo "${{ runner.os }} is not supported."
+              }"
+                  
