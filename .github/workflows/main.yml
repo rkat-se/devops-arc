@@ -9,7 +9,7 @@ jobs:
       runs-on: [ ubuntu-latest ]
       steps:
       - name: checkout
-        uses: actions/checkout@2v2
+        uses: actions/checkout@v4
         
   Blackduck_Scan:
         needs: Blackduck_Scan_trigger
