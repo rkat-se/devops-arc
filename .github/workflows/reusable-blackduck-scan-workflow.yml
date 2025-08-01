@@ -33,37 +33,27 @@ jobs:
    runs-on: [ ubuntu-latest ]
    steps:
     - uses: actions/checkout@v4
-    - name: Running Black Duck Detect and Scan
-      shell: powershell
-      run:  write-host "${{ github.workspace }}"
-            write-host "${{ github.repository }}"
-            $blackduck_properties += "--blackduck.url=${{ secrets.BLACKDUCK_URL }}",
-                              "--detect.policy.check.fail.on.severities="ALL"",
-                              "--blackduck.api.token=${{ secrets.BLACKDUCK_API_TOKEN }}",
-                              "--detect.source.path=${{ inputs.SourcePath }}",
-                              "--detect.project.name=${{ inputs.ProjectName }}",
-                              "--detect.project.version.name=${{ inputs.ProjectVersion }}",
-                              "--detect.project.codelocation.unmap="TRUE"",
-                              "--detect.project.tags=${{ inputs.ProjectTag }}",
-                              "--detect.detector.search.depth= ${{ inputs.FolderSearchDepth}}",
-                              "--detect.notices.report="TRUE"",
-                              "--detect.notices.report.path=${{ inputs.NoticeReportPath}}",
-                              "--detect.risk.report.pdf="TRUE"",
-                              "--detect.risk.report.pdf.path=${{ inputs.RiskReportPath}}",
-                              "--detect.blackduck.signature.scanner.copyright.search="TRUE"",
-                              "--detect.blackduck.signature.scanner.license.search="TRUE"",                      
-                              "--detect.blackduck.signature.scanner.upload.source.mode="TRUE"",
-                              "--detect.excluded.directories=${{ inputs.ExcludeDirectories}}""
-            echo "Running Black Duck Scan on ${{ runner.os }}"
-            echo "blackduck_properties = $blackduck_properties"
-            if ( "${{ runner.os }}" -eq "Windows_NT" ) {
-              powershell "[Net.ServicePointManager]::SecurityProtocol = 'tls12'; irm https://detect.synopsys.com/detect9.ps1?$RANDOM | iex; detect" $blackduck_properties
-              }
-            elseif ( "${{ runner.os }}" -eq "Linux" ) {
-              bash >(curl -s -L https://detect.synopsys.com/detect9.sh) $blackduck_properties    
-              }
-            else
-            {
-              echo "${{ runner.os }} is not supported."
-              }"
-                  
+    - name: Run Black Duck Scan
+      run: |
+        blackduck_properties=(
+          "--blackduck.url="
+          "--detect.policy.check.fail.on.severities=ALL"
+          "--blackduck.api.token="
+          "--detect.source.path=Modules"
+          "--detect.project.name="
+          "--detect.project.version.name=test123"
+          "--detect.project.codelocation.unmap=TRUE"
+          "--detect.project.tags=vci"
+          "--detect.detector.search.depth="
+          "--detect.notices.report=TRUE"
+          "--detect.notices.report.path=./Security/BlackDuckReports/"
+          "--detect.risk.report.pdf=TRUE"
+          "--detect.risk.report.pdf.path=./Security/BlackDuckReports/"
+          "--detect.blackduck.signature.scanner.copyright.search=TRUE"
+          "--detect.blackduck.signature.scanner.license.search=TRUE"
+          "--detect.blackduck.signature.scanner.upload.source.mode=TRUE"
+          "--detect.excluded.directories=./SecopsIntakePortal/CustomClaimHelpers,./SecopsIntakePortal/nginx"
+        )
+        echo "Running Black Duck Scan on Linux"
+        echo "blackduck_properties = ${blackduck_properties[*]}"
+        bash <(curl -s -L https://detect.synopsys.com/detect9.sh) "${blackduck_properties[@]}"
