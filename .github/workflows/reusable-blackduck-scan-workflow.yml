@@ -33,27 +33,66 @@ jobs:
    runs-on: [ ubuntu-latest ]
    steps:
     - uses: actions/checkout@v4
-    - name: Run Black Duck Scan
+    - name: Running Black Duck Detect and Scan
+      shell: bash
+      env:
+        BLACKDUCK_URL: ${{ secrets.BLACKDUCK_URL }}
+        BLACKDUCK_API_TOKEN: ${{ secrets.BLACKDUCK_API_TOKEN }}
+        PROJECT_NAME: ${{ env.PROJECT_NAME }}
+        PROJECT_PATH: ${{ env.PROJECT_PATH }}
+        PROJECT_VERSION: ${{ env.PROJECT_VERSION }}
+        PROJECT_TAG: ${{ env.PROJECT_TAG }}
+        FOLDER_SEARCH_DEPTH: ${{ env.FOLDER_SEARCH_DEPTH }}
+        REPORT_PATH: ${{ env.REPORT_PATH }}
+        RISK_REPORT_PATH: ${{ env.RISK_REPORT_PATH }}
+        EXCLUDE_DIRECTORIES: ${{ env.EXCLUDE_DIRECTORIES }}
+        # Add more env vars as needed
       run: |
+        set -e
+    
+        # Set defaults if not provided
+        source_path="${GITHUB_WORKSPACE}/${PROJECT_PATH:-.}"
+        project_name="${PROJECT_NAME:-${GITHUB_REPOSITORY}}"
+        project_version="${PROJECT_VERSION:-pr}"
+        project_tag="${PROJECT_TAG:-}"
+        folder_search_depth="${FOLDER_SEARCH_DEPTH:-0}"
+        report_path="${REPORT_PATH:-./Security/BlackDuckReports/}"
+        risk_report_path="${RISK_REPORT_PATH:-./Security/BlackDuckReports/}"
+    
+        # If on main branch, set version to main_latest
+        if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+          project_version="main_latest"
+        fi
+    
+        # Build Black Duck properties
         blackduck_properties=(
-          "--blackduck.url="
+          "--blackduck.url=${BLACKDUCK_URL}"
           "--detect.policy.check.fail.on.severities=ALL"
-          "--blackduck.api.token="
-          "--detect.source.path=Modules"
-          "--detect.project.name="
-          "--detect.project.version.name=test123"
+          "--blackduck.api.token=${BLACKDUCK_API_TOKEN}"
+          "--detect.source.path=${source_path}"
+          "--detect.project.name=${project_name}"
+          "--detect.project.version.name=${project_version}"
           "--detect.project.codelocation.unmap=TRUE"
-          "--detect.project.tags=vci"
-          "--detect.detector.search.depth="
+          "--detect.project.tags=${project_tag}"
+          "--detect.detector.search.depth=${folder_search_depth}"
           "--detect.notices.report=TRUE"
-          "--detect.notices.report.path=./Security/BlackDuckReports/"
+          "--detect.notices.report.path=${report_path}"
           "--detect.risk.report.pdf=TRUE"
-          "--detect.risk.report.pdf.path=./Security/BlackDuckReports/"
+          "--detect.risk.report.pdf.path=${risk_report_path}"
           "--detect.blackduck.signature.scanner.copyright.search=TRUE"
           "--detect.blackduck.signature.scanner.license.search=TRUE"
           "--detect.blackduck.signature.scanner.upload.source.mode=TRUE"
-          "--detect.excluded.directories=./SecopsIntakePortal/CustomClaimHelpers,./SecopsIntakePortal/nginx"
         )
-        echo "Running Black Duck Scan on Linux"
+    
+        # Handle excluded directories (comma-separated)
+        IFS=',' read -ra EXCLUDE_DIRS <<< "${EXCLUDE_DIRECTORIES}"
+        for exdir in "${EXCLUDE_DIRS[@]}"; do
+          if [[ -n "$exdir" ]]; then
+            blackduck_properties+=("--detect.excluded.directories=$exdir")
+          fi
+        done
+    
+        echo "Running Black Duck Scan on $RUNNER_OS"
         echo "blackduck_properties = ${blackduck_properties[*]}"
-        bash <(curl -s -L https://detect.synopsys.com/detect9.sh) "${blackduck_properties[@]}"
+    
+        bash <(curl -s -L https://detect.blackduck.com/detect9.sh) "${blackduck_properties[@]}"
