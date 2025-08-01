@@ -12,6 +12,7 @@ jobs:
         uses: actions/checkout@2v2
         
   Blackduck_Scan:
+        needs: Blackduck_Scan_trigger
         uses: ./.github/workflows/reusable-blackduck-scan-workflow.yml
         with:
           SourcePath: 'Modules'
