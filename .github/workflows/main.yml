@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 jobs:
   Blackduck_Scan_trigger:
-
-      runs-on: 
+      runs-on: linux
       steps:
       - name: checkout
         uses: actions/checkout@2v2
